@@ -1,0 +1,17 @@
+{
+  "name": "Nadya OS",
+  "short_name": "Nadya OS",
+  "description": "A calm personal operating system that decides what matters next.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f0e8",
+  "theme_color": "#8f79ff",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
