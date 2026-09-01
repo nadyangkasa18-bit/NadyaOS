@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent, type TouchEvent } from "react";
 
 type View = "today" | "capture" | "memory";
 type TaskState = "ready" | "done";
+type Accent = "violet" | "lime" | "yellow" | "blue" | "coral";
+type CaptureKind = "note" | "task" | "decision" | "idea";
 
 type Task = {
   id: string;
@@ -12,16 +14,33 @@ type Task = {
   minutes: number;
   xp: number;
   reason: string;
-  accent: "violet" | "yellow" | "blue" | "coral";
+  accent: Accent;
   state: TaskState;
 };
 
 type Note = {
   id: string;
   text: string;
-  kind: "note" | "task" | "decision" | "idea";
+  kind: CaptureKind;
   project: string;
   createdAt: string;
+  minutes?: number;
+};
+
+type CaptureDraft = {
+  id: string;
+  text: string;
+  kind: CaptureKind;
+  minutes?: number;
+};
+
+type Habit = {
+  id: string;
+  title: string;
+  cue: string;
+  minutes: number;
+  xp: number;
+  done: boolean;
 };
 
 const seedTasks: Task[] = [
@@ -31,7 +50,7 @@ const seedTasks: Task[] = [
     project: "AITA",
     minutes: 45,
     xp: 24,
-    reason: "High-impact decision · unblocks the next product steps",
+    reason: "High impact · unblocks the next product steps",
     accent: "violet",
     state: "ready",
   },
@@ -41,8 +60,8 @@ const seedTasks: Task[] = [
     project: "Wedding",
     minutes: 20,
     xp: 12,
-    reason: "Easy decision · prevents the booklet from lingering",
-    accent: "yellow",
+    reason: "Small decision · stops this from lingering",
+    accent: "lime",
     state: "ready",
   },
   {
@@ -51,7 +70,7 @@ const seedTasks: Task[] = [
     project: "OtterWay",
     minutes: 15,
     xp: 10,
-    reason: "Small task · closes an open product loop",
+    reason: "Quick close · removes an open product loop",
     accent: "blue",
     state: "ready",
   },
@@ -61,7 +80,7 @@ const seedTasks: Task[] = [
     project: "Life admin",
     minutes: 8,
     xp: 8,
-    reason: "Fast admin · remove it from your head",
+    reason: "Fast admin · get it out of your head",
     accent: "coral",
     state: "ready",
   },
@@ -77,7 +96,7 @@ const seedNotes: Note[] = [
   },
   {
     id: "m2",
-    text: "The daily interface should hide the master backlog. Nadya should see one task now, two or three next, and trust the system to remember the rest.",
+    text: "The daily interface should hide the master backlog. Show one thing now, a few things next, and remember the rest.",
     kind: "decision",
     project: "Nadya OS",
     createdAt: "Today",
@@ -98,42 +117,120 @@ const seedNotes: Note[] = [
   },
 ];
 
-const navItems: { id: View; label: string; glyph: string }[] = [
-  { id: "today", label: "Today", glyph: "✦" },
-  { id: "capture", label: "Capture", glyph: "+" },
-  { id: "memory", label: "Memory", glyph: "⌘" },
+const seedHabits: Habit[] = [
+  {
+    id: "shutdown-reset",
+    title: "Reset the workspace",
+    cue: "When work ends",
+    minutes: 2,
+    xp: 4,
+    done: false,
+  },
+  {
+    id: "tomorrow-first",
+    title: "Write tomorrow's first move",
+    cue: "Then",
+    minutes: 2,
+    xp: 4,
+    done: false,
+  },
+  {
+    id: "close-loop",
+    title: "Close the laptop and leave",
+    cue: "Then",
+    minutes: 1,
+    xp: 3,
+    done: false,
+  },
 ];
+
+const navItems: { id: View; label: string }[] = [
+  { id: "today", label: "Today" },
+  { id: "capture", label: "Capture" },
+  { id: "memory", label: "Memory" },
+];
+
+function NavIcon({ name }: { name: View }) {
+  if (name === "capture") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="3.5" y="3.5" width="17" height="17" rx="5" />
+        <path d="M12 8v8M8 12h8" />
+      </svg>
+    );
+  }
+
+  if (name === "memory") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M5 5.5A2.5 2.5 0 0 1 7.5 3H19v16H7.5A2.5 2.5 0 0 0 5 21.5v-16Z" />
+        <path d="M5 18.5A2.5 2.5 0 0 1 7.5 16H19" />
+        <path d="M9 7h6M9 10h5" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 3.5 14.2 9l5.3 2.2-5.3 2.2L12 19l-2.2-5.6-5.3-2.2L9.8 9 12 3.5Z" />
+    </svg>
+  );
+}
+
+function formatToday() {
+  return new Intl.DateTimeFormat("en", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  }).format(new Date());
+}
+
+function taskXp(minutes: number) {
+  return Math.max(6, Math.min(30, Math.round(minutes / 5) * 2 + 4));
+}
 
 export default function Home() {
   const [view, setView] = useState<View>("today");
   const [tasks, setTasks] = useState<Task[]>(seedTasks);
   const [notes, setNotes] = useState<Note[]>(seedNotes);
+  const [habits, setHabits] = useState<Habit[]>(seedHabits);
   const [xp, setXp] = useState(32);
   const [activeTask, setActiveTask] = useState<string | null>(null);
+  const [questIndex, setQuestIndex] = useState(0);
   const [captureText, setCaptureText] = useState("");
-  const [captureKind, setCaptureKind] = useState<Note["kind"]>("note");
+  const [captureKind, setCaptureKind] = useState<CaptureKind>("task");
+  const [captureMinutes, setCaptureMinutes] = useState(15);
+  const [captureBatch, setCaptureBatch] = useState<CaptureDraft[]>([]);
   const [memoryQuery, setMemoryQuery] = useState("");
   const [toast, setToast] = useState<string | null>(null);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const [dateLabel, setDateLabel] = useState("Today");
+  const swipeStartX = useRef<number | null>(null);
 
   useEffect(() => {
+    setDateLabel(formatToday());
     const saved = window.localStorage.getItem("nadya-os-prototype");
-    if (!saved) return;
-    try {
-      const parsed = JSON.parse(saved);
-      if (parsed.tasks) setTasks(parsed.tasks);
-      if (parsed.notes) setNotes(parsed.notes);
-      if (typeof parsed.xp === "number") setXp(parsed.xp);
-    } catch {
-      // Prototype storage should never block the interface.
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed.tasks)) setTasks(parsed.tasks);
+        if (Array.isArray(parsed.notes)) setNotes(parsed.notes);
+        if (Array.isArray(parsed.habits)) setHabits(parsed.habits);
+        if (typeof parsed.xp === "number") setXp(parsed.xp);
+      } catch {
+        // Local prototype data should never block the interface.
+      }
     }
+    setHasLoaded(true);
   }, []);
 
   useEffect(() => {
+    if (!hasLoaded) return;
     window.localStorage.setItem(
       "nadya-os-prototype",
-      JSON.stringify({ tasks, notes, xp })
+      JSON.stringify({ tasks, notes, habits, xp })
     );
-  }, [tasks, notes, xp]);
+  }, [tasks, notes, habits, xp, hasLoaded]);
 
   useEffect(() => {
     if (!toast) return;
@@ -141,12 +238,30 @@ export default function Home() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const remaining = tasks.filter((task) => task.state !== "done");
-  const current = remaining[0];
-  const upcoming = remaining.slice(1, 4);
-  const completed = tasks.filter((task) => task.state === "done").length;
+  useEffect(() => {
+    document.body.style.overflow = activeTask ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [activeTask]);
+
+  const remaining = useMemo(
+    () => tasks.filter((task) => task.state !== "done"),
+    [tasks]
+  );
+
+  useEffect(() => {
+    setQuestIndex((index) => Math.min(index, Math.max(remaining.length - 1, 0)));
+  }, [remaining.length]);
+
+  const selectedQuest = remaining[questIndex];
+  const activeQuest = tasks.find(
+    (task) => task.id === activeTask && task.state !== "done"
+  );
   const rewardTarget = 50;
   const rewardProgress = Math.min(100, (xp / rewardTarget) * 100);
+  const habitsDone = habits.filter((habit) => habit.done).length;
+  const nextHabitIndex = habits.findIndex((habit) => !habit.done);
 
   const memoryResults = useMemo(() => {
     const query = memoryQuery.trim().toLowerCase();
@@ -155,6 +270,25 @@ export default function Home() {
       `${note.text} ${note.project} ${note.kind}`.toLowerCase().includes(query)
     );
   }, [memoryQuery, notes]);
+
+  function moveQuest(direction: number) {
+    if (remaining.length < 2) return;
+    setQuestIndex((index) => (index + direction + remaining.length) % remaining.length);
+    if (navigator.vibrate) navigator.vibrate(8);
+  }
+
+  function handleSwipeEnd(clientX: number) {
+    if (swipeStartX.current === null) return;
+    const delta = clientX - swipeStartX.current;
+    swipeStartX.current = null;
+    if (Math.abs(delta) < 48) return;
+    moveQuest(delta < 0 ? 1 : -1);
+  }
+
+  function startQuest(id: string) {
+    setActiveTask(id);
+    if (navigator.vibrate) navigator.vibrate([22, 18, 32]);
+  }
 
   function completeTask(id: string) {
     const task = tasks.find((item) => item.id === id);
@@ -166,301 +300,427 @@ export default function Home() {
     );
     setXp((value) => value + task.xp);
     setActiveTask(null);
-    setToast(`+${task.xp} XP · quest complete`);
+    setQuestIndex(0);
+    setToast(`+${task.xp} XP · quest cleared`);
     if (navigator.vibrate) navigator.vibrate([35, 30, 55]);
   }
 
-  function saveCapture() {
+  function completeHabit(id: string, index: number) {
+    if (index > nextHabitIndex && nextHabitIndex !== -1) return;
+    const habit = habits.find((item) => item.id === id);
+    if (!habit || habit.done) return;
+    setHabits((items) =>
+      items.map((item) => (item.id === id ? { ...item, done: true } : item))
+    );
+    setXp((value) => value + habit.xp);
+    setToast(`Habit linked · +${habit.xp} XP`);
+    if (navigator.vibrate) navigator.vibrate(20);
+  }
+
+  function addCaptureToBatch() {
     const text = captureText.trim();
     if (!text) return;
-    const newNote: Note = {
-      id: `${Date.now()}`,
-      text,
-      kind: captureKind,
+    setCaptureBatch((items) => [
+      ...items,
+      {
+        id: `draft-${Date.now()}`,
+        text,
+        kind: captureKind,
+        minutes: captureKind === "task" ? captureMinutes : undefined,
+      },
+    ]);
+    setCaptureText("");
+    setToast("Added to this capture batch");
+    if (navigator.vibrate) navigator.vibrate(10);
+  }
+
+  function removeCaptureDraft(id: string) {
+    setCaptureBatch((items) => items.filter((item) => item.id !== id));
+  }
+
+  function saveCaptureBatch() {
+    const currentText = captureText.trim();
+    const drafts: CaptureDraft[] = [
+      ...captureBatch,
+      ...(currentText
+        ? [
+            {
+              id: `draft-${Date.now()}`,
+              text: currentText,
+              kind: captureKind,
+              minutes: captureKind === "task" ? captureMinutes : undefined,
+            } as CaptureDraft,
+          ]
+        : []),
+    ];
+
+    if (!drafts.length) return;
+    const now = Date.now();
+    const newNotes: Note[] = drafts.map((draft, index) => ({
+      id: `memory-${now}-${index}`,
+      text: draft.text,
+      kind: draft.kind,
       project: "Inbox",
       createdAt: "Just now",
-    };
-    setNotes((items) => [newNote, ...items]);
+      minutes: draft.minutes,
+    }));
+    const newTasks: Task[] = drafts
+      .filter((draft) => draft.kind === "task")
+      .map((draft, index) => {
+        const minutes = draft.minutes ?? 15;
+        return {
+          id: `task-${now}-${index}`,
+          title: draft.text,
+          project: "Inbox",
+          minutes,
+          xp: taskXp(minutes),
+          reason: "Fresh capture · ready for prioritization",
+          accent: "blue" as Accent,
+          state: "ready" as TaskState,
+        };
+      });
 
-    if (captureKind === "task") {
-      const newTask: Task = {
-        id: `task-${Date.now()}`,
-        title: text,
-        project: "Inbox",
-        minutes: 15,
-        xp: 8,
-        reason: "New capture · waiting for AI prioritization",
-        accent: "blue",
-        state: "ready",
-      };
-      setTasks((items) => [...items, newTask]);
-    }
-
+    setNotes((items) => [...newNotes.reverse(), ...items]);
+    if (newTasks.length) setTasks((items) => [...items, ...newTasks]);
+    setCaptureBatch([]);
     setCaptureText("");
-    setToast(captureKind === "task" ? "Task remembered" : "Memory saved");
-    setView("today");
+    setToast(`${drafts.length} ${drafts.length === 1 ? "item" : "items"} saved · keep going if you want`);
   }
 
   return (
-    <main className="app-shell">
-      <aside className="sidebar">
-        <div className="brand-lockup">
-          <div className="brand-mark">N</div>
-          <div>
-            <strong>Nadya OS</strong>
-            <span>personal operating system</span>
-          </div>
-        </div>
-
-        <nav className="desktop-nav" aria-label="Main navigation">
+    <main className="app-root">
+      <aside className="desktop-rail" aria-label="Main navigation">
+        <button className="app-mark" onClick={() => setView("today")} aria-label="Nadya OS home">
+          N
+        </button>
+        <nav className="rail-nav">
           {navItems.map((item) => (
             <button
               key={item.id}
-              className={view === item.id ? "nav-item active" : "nav-item"}
+              className={view === item.id ? "rail-item active" : "rail-item"}
               onClick={() => setView(item.id)}
+              aria-label={item.label}
+              title={item.label}
             >
-              <span className="nav-glyph">{item.glyph}</span>
-              {item.label}
+              <NavIcon name={item.id} />
+              <span>{item.label}</span>
             </button>
           ))}
         </nav>
-
-        <div className="sidebar-bottom">
-          <div className="mini-status">
-            <span className="status-dot" />
-            Prototype mode
-          </div>
-          <p>Your data is only stored on this device for now.</p>
+        <div className="rail-xp">
+          <span>{xp}</span>
+          <small>XP</small>
         </div>
       </aside>
 
-      <section className="workspace">
-        <header className="topbar">
-          <div className="mobile-brand">
-            <div className="brand-mark small">N</div>
-            <strong>Nadya OS</strong>
+      <section className="app-surface">
+        <header className="app-header">
+          <div className="header-brand">
+            <span className="header-dot" />
+            <span>Nadya OS</span>
           </div>
-          <div className="date-chip">TUE · SEP 01</div>
-          <button className="profile-chip" aria-label="Profile">
-            NA
-          </button>
+          <div className="header-meta">
+            <span className="mono-date">{dateLabel}</span>
+            <span className="xp-pill">{xp} XP</span>
+          </div>
         </header>
 
         {view === "today" && (
-          <div className="page today-page">
-            <section className="editorial-heading">
-              <div>
-                <p className="eyebrow">TODAY’S RUN</p>
-                <h1>
-                  Good afternoon.<br />
-                  <span>One thing at a time.</span>
-                </h1>
-              </div>
-              <div className="day-score">
-                <strong>{completed}</strong>
-                <span>quests cleared</span>
-              </div>
+          <div className="screen today-screen">
+            <section className="screen-intro">
+              <p className="kicker">TODAY</p>
+              <h1>Your next move.</h1>
+              <p className="intro-copy">You do the work. The system holds everything else.</p>
             </section>
 
-            {current ? (
-              <section className={`hero-quest ${current.accent}`}>
-                <div className="quest-number">01</div>
-                <div className="quest-main">
-                  <div className="quest-meta-row">
-                    <span>MAIN QUEST</span>
-                    <span>{current.project}</span>
-                  </div>
-                  <h2>{current.title}</h2>
-                  <p className="why-now">{current.reason}</p>
-                  <div className="quest-footer">
-                    <div className="task-stats">
-                      <span>◷ {current.minutes} min</span>
-                      <span>✦ {current.xp} XP</span>
-                    </div>
-                    <div className="quest-actions">
-                      {activeTask === current.id ? (
-                        <button className="primary-button complete" onClick={() => completeTask(current.id)}>
-                          Mark complete ✓
-                        </button>
-                      ) : (
-                        <button className="primary-button" onClick={() => setActiveTask(current.id)}>
-                          Start quest →
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  {activeTask === current.id && (
-                    <div className="focus-strip">
-                      <span className="pulse-dot" /> Focus mode on. Everything else can wait.
-                    </div>
-                  )}
+            <section className="quest-section">
+              <div className="quest-section-top">
+                <div>
+                  <span className="section-label">MAIN QUEST</span>
+                  <span className="queue-count">
+                    {remaining.length ? `${questIndex + 1} / ${remaining.length}` : "clear"}
+                  </span>
                 </div>
-              </section>
-            ) : (
-              <section className="hero-quest done-state">
-                <div className="quest-main">
-                  <p className="eyebrow">RUN COMPLETE</p>
-                  <h2>You cleared everything queued for today.</h2>
-                  <p>Go play something. The backlog will still be here tomorrow.</p>
-                </div>
-              </section>
-            )}
-
-            <section className="lower-grid">
-              <div className="up-next panel">
-                <div className="section-title-row">
-                  <div>
-                    <p className="eyebrow">QUEUED FOR YOU</p>
-                    <h3>Up next</h3>
-                  </div>
-                  <span className="quiet-label">AI ordered</span>
-                </div>
-
-                <div className="task-list">
-                  {upcoming.length ? (
-                    upcoming.map((task, index) => (
-                      <button
-                        className="task-row"
-                        key={task.id}
-                        onClick={() => setToast("The order is protected so you don’t have to reprioritize.")}
-                      >
-                        <span className={`task-index ${task.accent}`}>{String(index + 2).padStart(2, "0")}</span>
-                        <span className="task-copy">
-                          <strong>{task.title}</strong>
-                          <small>{task.project} · {task.minutes} min</small>
-                        </span>
-                        <span className="task-xp">+{task.xp}</span>
-                      </button>
-                    ))
-                  ) : (
-                    <p className="empty-copy">Nothing else queued. Nice.</p>
-                  )}
-                </div>
+                {remaining.length > 1 && <span className="swipe-hint">Swipe to browse queue</span>}
               </div>
 
-              <div className="reward-card panel">
-                <div className="reward-top">
+              {selectedQuest ? (
+                <article
+                  className={`quest-card ${selectedQuest.accent}`}
+                  onTouchStart={(event: TouchEvent<HTMLElement>) => {
+                    swipeStartX.current = event.touches[0]?.clientX ?? null;
+                  }}
+                  onTouchEnd={(event: TouchEvent<HTMLElement>) => {
+                    handleSwipeEnd(event.changedTouches[0]?.clientX ?? 0);
+                  }}
+                >
+                  <div className="quest-card-glow" />
+                  <div className="quest-card-top">
+                    <span className="project-chip">{selectedQuest.project}</span>
+                    <span className="quest-position mono-text">{String(questIndex + 1).padStart(2, "0")}</span>
+                  </div>
+                  <div className="quest-card-body">
+                    <h2>{selectedQuest.title}</h2>
+                    <p>{selectedQuest.reason}</p>
+                  </div>
+                  <div className="quest-card-bottom">
+                    <div className="quest-stats mono-text">
+                      <span>{selectedQuest.minutes} MIN</span>
+                      <span>+{selectedQuest.xp} XP</span>
+                    </div>
+                    <button className="start-button" onClick={() => startQuest(selectedQuest.id)}>
+                      Start
+                      <span>↗</span>
+                    </button>
+                  </div>
+                </article>
+              ) : (
+                <article className="quest-card clear-card">
+                  <div className="quest-card-body">
+                    <span className="section-label">RUN COMPLETE</span>
+                    <h2>Nothing is asking for you right now.</h2>
+                    <p>Use the space. Play something, go outside, or capture what comes next.</p>
+                  </div>
+                </article>
+              )}
+
+              {remaining.length > 1 && (
+                <div className="quest-pagination">
+                  <button onClick={() => moveQuest(-1)} aria-label="Previous quest">←</button>
+                  <div className="quest-dots" aria-label="Quest position">
+                    {remaining.map((task, index) => (
+                      <button
+                        key={task.id}
+                        className={index === questIndex ? "quest-dot active" : "quest-dot"}
+                        onClick={() => setQuestIndex(index)}
+                        aria-label={`View quest ${index + 1}`}
+                      />
+                    ))}
+                  </div>
+                  <button onClick={() => moveQuest(1)} aria-label="Next quest">→</button>
+                </div>
+              )}
+            </section>
+
+            <section className="today-grid">
+              <article className="habit-panel panel">
+                <div className="panel-heading">
                   <div>
-                    <p className="eyebrow">NEXT UNLOCK</p>
+                    <span className="section-label">HABIT STACK</span>
+                    <h3>Build the chain, not the streak.</h3>
+                  </div>
+                  <span className="panel-count mono-text">{habitsDone}/{habits.length}</span>
+                </div>
+                <p className="panel-copy">One cue leads into the next. New habits join only after the anchor feels easy.</p>
+                <div className="habit-list">
+                  {habits.map((habit, index) => {
+                    const locked = nextHabitIndex !== -1 && index > nextHabitIndex;
+                    return (
+                      <button
+                        key={habit.id}
+                        className={`habit-row ${habit.done ? "done" : ""} ${locked ? "locked" : ""}`}
+                        onClick={() => completeHabit(habit.id, index)}
+                        disabled={locked || habit.done}
+                      >
+                        <span className="habit-step">{habit.done ? "✓" : index + 1}</span>
+                        <span className="habit-copy">
+                          <small>{habit.cue}</small>
+                          <strong>{habit.title}</strong>
+                        </span>
+                        <span className="habit-time mono-text">{habit.minutes}M</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="habit-rule">
+                  <span>Prototype rule</span>
+                  <strong>Add the next habit after 5 easy days.</strong>
+                </div>
+              </article>
+
+              <article className="reward-panel panel">
+                <div className="panel-heading">
+                  <div>
+                    <span className="section-label">NEXT UNLOCK</span>
                     <h3>30 min game time</h3>
                   </div>
-                  <div className="game-token">🎮</div>
+                  <span className="reward-icon">◒</span>
                 </div>
-                <div className="xp-line">
-                  <strong>{xp} XP</strong>
-                  <span>{Math.max(0, rewardTarget - xp)} to unlock</span>
+                <div className="reward-meter">
+                  <div className="reward-numbers">
+                    <strong>{xp}</strong>
+                    <span className="mono-text">/ {rewardTarget} XP</span>
+                  </div>
+                  <div className="progress-track">
+                    <div className="progress-fill" style={{ width: `${rewardProgress}%` }} />
+                  </div>
                 </div>
-                <div className="progress-track">
-                  <div className="progress-fill" style={{ width: `${rewardProgress}%` }} />
-                </div>
-                <p className="reward-note">
+                <p className="panel-copy">
                   {xp >= rewardTarget
-                    ? "Unlocked. You earned it — no guilt attached."
-                    : "No streaks. No punishment. Just today’s run."}
+                    ? "Unlocked. Use it whenever you want — no guilt attached."
+                    : `${Math.max(0, rewardTarget - xp)} XP left. No streaks and no punishment.`}
                 </p>
-              </div>
+              </article>
             </section>
 
-            <button className="capture-bar" onClick={() => setView("capture")}>
-              <span className="capture-plus">+</span>
+            <button className="quick-capture" onClick={() => setView("capture")}>
+              <span className="quick-plus">+</span>
               <span>
-                <strong>Dump something from your head</strong>
-                <small>task, thought, decision, random idea — sorting is not your job</small>
+                <strong>Capture whatever is taking up space</strong>
+                <small>Tasks, notes, decisions, half-formed thoughts.</small>
               </span>
-              <span className="shortcut">⌘ K</span>
+              <span className="quick-arrow">→</span>
             </button>
           </div>
         )}
 
         {view === "capture" && (
-          <div className="page capture-page">
-            <section className="editorial-heading compact">
-              <div>
-                <p className="eyebrow">ZERO-ADMIN CAPTURE</p>
-                <h1>
-                  Get it out.<br />
-                  <span>I’ll remember it.</span>
-                </h1>
-              </div>
+          <div className="screen capture-screen">
+            <section className="screen-intro compact-intro">
+              <p className="kicker">CAPTURE MODE</p>
+              <h1>Keep going until your head feels lighter.</h1>
+              <p className="intro-copy">Add a whole batch. Nothing sends you back home until you decide you're done.</p>
             </section>
 
-            <section className="capture-studio">
-              <div className="capture-type-row">
-                {(["note", "task", "decision", "idea"] as Note["kind"][]).map((kind) => (
+            <section className="capture-composer panel">
+              <div className="capture-kind-row" aria-label="Capture type">
+                {(["task", "note", "decision", "idea"] as CaptureKind[]).map((kind) => (
                   <button
                     key={kind}
-                    className={captureKind === kind ? "type-pill active" : "type-pill"}
+                    className={captureKind === kind ? "kind-pill active" : "kind-pill"}
                     onClick={() => setCaptureKind(kind)}
                   >
                     {kind}
                   </button>
                 ))}
               </div>
+
               <textarea
                 autoFocus
                 value={captureText}
-                onChange={(event) => setCaptureText(event.target.value)}
-                placeholder="Type the messy version. “Need to ask Matt about the booklet, and Glen said...”"
+                onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setCaptureText(event.target.value)}
+                onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => {
+                  if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                    event.preventDefault();
+                    addCaptureToBatch();
+                  }
+                }}
+                placeholder={
+                  captureKind === "task"
+                    ? "What needs to get done? Write the messy version."
+                    : "Write it exactly as it is in your head."
+                }
               />
-              <div className="capture-studio-footer">
-                <div className="ai-preview">
-                  <span className="spark">✦</span>
-                  <span>
-                    <strong>Later: AI auto-sorts this</strong>
-                    <small>projects · people · tasks · decisions · connections</small>
-                  </span>
+
+              {captureKind === "task" && (
+                <div className="estimate-row">
+                  <div>
+                    <span className="field-label">TIME ESTIMATE</span>
+                    <small>How long should this take if you actually focus?</small>
+                  </div>
+                  <div className="estimate-controls">
+                    {[10, 15, 30, 45, 60].map((minutes) => (
+                      <button
+                        key={minutes}
+                        className={captureMinutes === minutes ? "estimate-chip active" : "estimate-chip"}
+                        onClick={() => setCaptureMinutes(minutes)}
+                      >
+                        {minutes}m
+                      </button>
+                    ))}
+                    <label className="custom-estimate">
+                      <input
+                        type="number"
+                        min="1"
+                        max="480"
+                        value={captureMinutes}
+                        onChange={(event: ChangeEvent<HTMLInputElement>) => setCaptureMinutes(Math.max(1, Number(event.target.value) || 1))}
+                      />
+                      <span>min</span>
+                    </label>
+                  </div>
                 </div>
-                <button className="primary-button" onClick={saveCapture} disabled={!captureText.trim()}>
-                  Save to brain →
+              )}
+
+              <div className="composer-actions">
+                <span className="shortcut-hint mono-text">⌘ ENTER · ADD TO BATCH</span>
+                <button className="secondary-button" onClick={addCaptureToBatch} disabled={!captureText.trim()}>
+                  Add another +
                 </button>
               </div>
             </section>
 
-            <div className="capture-hint-grid">
-              <div><span>01</span><strong>Write naturally</strong><p>No tags. No folders. No perfect phrasing.</p></div>
-              <div><span>02</span><strong>Close the app</strong><p>You shouldn’t need to “process” your inbox later.</p></div>
-              <div><span>03</span><strong>Trust retrieval</strong><p>Ask for it when you need it instead of remembering where it lives.</p></div>
-            </div>
+            <section className="batch-panel">
+              <div className="batch-heading">
+                <div>
+                  <span className="section-label">THIS BATCH</span>
+                  <h3>{captureBatch.length ? `${captureBatch.length} waiting to save` : "Nothing staged yet"}</h3>
+                </div>
+                {(captureBatch.length > 0 || captureText.trim()) && (
+                  <button className="save-batch-button" onClick={saveCaptureBatch}>
+                    Save {captureBatch.length + (captureText.trim() ? 1 : 0)} to brain
+                  </button>
+                )}
+              </div>
+
+              {captureBatch.length > 0 && (
+                <div className="batch-list">
+                  {captureBatch.map((draft, index) => (
+                    <article className="batch-item" key={draft.id}>
+                      <span className="batch-number mono-text">{String(index + 1).padStart(2, "0")}</span>
+                      <div className="batch-copy">
+                        <span className={`batch-kind ${draft.kind}`}>{draft.kind}</span>
+                        <p>{draft.text}</p>
+                      </div>
+                      {draft.minutes && <span className="batch-minutes mono-text">{draft.minutes}m</span>}
+                      <button className="remove-batch" onClick={() => removeCaptureDraft(draft.id)} aria-label="Remove from batch">×</button>
+                    </article>
+                  ))}
+                </div>
+              )}
+
+              <button className="done-capturing" onClick={() => setView("today")}>Done capturing →</button>
+            </section>
           </div>
         )}
 
         {view === "memory" && (
-          <div className="page memory-page">
-            <section className="editorial-heading compact memory-heading">
-              <div>
-                <p className="eyebrow">SECOND BRAIN</p>
-                <h1>
-                  Ask your past self<br />
-                  <span>anything.</span>
-                </h1>
-              </div>
+          <div className="screen memory-screen">
+            <section className="screen-intro compact-intro">
+              <p className="kicker">MEMORY</p>
+              <h1>Ask your past self.</h1>
+              <p className="intro-copy">For now this searches exact text. Later, semantic memory will connect the thought behind the words.</p>
             </section>
 
-            <div className="memory-search-wrap">
-              <span className="search-icon">⌕</span>
+            <div className="memory-search panel">
+              <NavIcon name="memory" />
               <input
                 value={memoryQuery}
-                onChange={(event) => setMemoryQuery(event.target.value)}
-                placeholder="What did we decide about AITA and OtterWay?"
+                onChange={(event: ChangeEvent<HTMLInputElement>) => setMemoryQuery(event.target.value)}
+                placeholder="Search decisions, ideas, projects..."
               />
-              <span className="memory-count">{memoryResults.length}</span>
+              <span className="memory-result-count mono-text">{memoryResults.length}</span>
             </div>
 
-            <section className="memory-grid">
+            <section className="memory-list">
               {memoryResults.map((note, index) => (
-                <article className={`memory-card memory-${index % 4}`} key={note.id}>
-                  <div className="memory-card-top">
+                <article className="memory-row" key={note.id} style={{ animationDelay: `${Math.min(index, 5) * 35}ms` }}>
+                  <div className="memory-meta">
                     <span className={`memory-kind ${note.kind}`}>{note.kind}</span>
-                    <span>{note.createdAt}</span>
+                    <span className="mono-text">{note.createdAt}</span>
                   </div>
                   <p>{note.text}</p>
-                  <div className="memory-project">↳ {note.project}</div>
+                  <div className="memory-footer">
+                    <span>{note.project}</span>
+                    {note.minutes && <span className="mono-text">{note.minutes} MIN</span>}
+                  </div>
                 </article>
               ))}
               {!memoryResults.length && (
-                <div className="no-memory">
-                  <strong>No exact match.</strong>
-                  <p>In the connected version, semantic search will find related thoughts even when the wording is different.</p>
+                <div className="memory-empty panel">
+                  <span>⌁</span>
+                  <h3>No exact match.</h3>
+                  <p>The Supabase + AI version will surface related memories even when your wording is completely different.</p>
                 </div>
               )}
             </section>
@@ -475,11 +735,36 @@ export default function Home() {
             className={view === item.id ? "mobile-nav-item active" : "mobile-nav-item"}
             onClick={() => setView(item.id)}
           >
-            <span>{item.glyph}</span>
-            {item.label}
+            <span className="mobile-nav-icon"><NavIcon name={item.id} /></span>
+            <span className="mobile-nav-label">{item.label}</span>
           </button>
         ))}
       </nav>
+
+      {activeQuest && (
+        <div className={`focus-overlay ${activeQuest.accent}`} role="dialog" aria-modal="true" aria-label="Active quest">
+          <div className="focus-noise" />
+          <header className="focus-header">
+            <span className="focus-brand">NADYA OS · FOCUS</span>
+            <button className="focus-close" onClick={() => setActiveTask(null)} aria-label="Exit focus mode">×</button>
+          </header>
+          <div className="focus-content">
+            <div className="focus-meta mono-text">
+              <span>MAIN QUEST</span>
+              <span>{activeQuest.project}</span>
+              <span>{activeQuest.minutes} MIN</span>
+            </div>
+            <h1>{activeQuest.title.toUpperCase()}</h1>
+            <p>{activeQuest.reason}</p>
+          </div>
+          <footer className="focus-footer">
+            <button className="focus-secondary" onClick={() => setActiveTask(null)}>Not now</button>
+            <button className="focus-complete" onClick={() => completeTask(activeQuest.id)}>
+              Complete quest <span>+{activeQuest.xp} XP</span>
+            </button>
+          </footer>
+        </div>
+      )}
 
       {toast && <div className="toast">{toast}</div>}
     </main>
