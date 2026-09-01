@@ -3,6 +3,7 @@ import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import PwaRegister from "./pwa-register";
 import "./globals.css";
+import "./typography.css";
 
 export const metadata: Metadata = {
   title: "Nadya OS",

@@ -1,0 +1,158 @@
+/* Nadya OS typography layer — keep the interface calm, native, and precise. */
+
+html {
+  font-synthesis: none;
+  font-kerning: normal;
+}
+
+body {
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 400;
+  letter-spacing: -0.008em;
+}
+
+button,
+input,
+textarea {
+  font-family: inherit;
+  letter-spacing: -0.008em;
+}
+
+.header-brand,
+.mobile-nav-label,
+.rail-item span {
+  font-weight: 450;
+}
+
+.mono-text,
+.mono-date,
+.kicker,
+.section-label,
+.field-label,
+.focus-brand,
+.xp-pill,
+.rail-xp,
+.quest-stats,
+.queue-count {
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 400;
+}
+
+.kicker,
+.section-label,
+.field-label {
+  letter-spacing: 0.075em;
+}
+
+.mono-date {
+  letter-spacing: 0.055em;
+}
+
+.screen-intro h1 {
+  font-weight: 400;
+  letter-spacing: -0.045em;
+  line-height: 1.01;
+}
+
+.compact-intro h1 {
+  font-weight: 400;
+}
+
+.intro-copy {
+  letter-spacing: -0.012em;
+}
+
+.quest-card-body h2 {
+  font-weight: 400;
+  letter-spacing: -0.038em;
+  line-height: 1.045;
+}
+
+.quest-card-body p,
+.panel-copy,
+.quick-capture small,
+.capture-composer textarea,
+.batch-copy p,
+.memory-row p,
+.memory-empty p,
+.focus-content p {
+  letter-spacing: -0.012em;
+}
+
+.panel-heading h3,
+.batch-heading h3,
+.memory-empty h3,
+.habit-copy strong,
+.quick-capture strong {
+  font-weight: 450;
+}
+
+.reward-numbers strong {
+  font-weight: 400;
+  letter-spacing: -0.035em;
+}
+
+.start-button,
+.save-batch-button,
+.focus-complete,
+.secondary-button {
+  font-weight: 500;
+}
+
+.kind-pill,
+.estimate-chip,
+.project-chip,
+.done-capturing,
+.focus-secondary {
+  font-weight: 400;
+}
+
+.capture-composer textarea {
+  font-weight: 400;
+  letter-spacing: -0.028em;
+  line-height: 1.2;
+}
+
+.memory-row p {
+  letter-spacing: -0.008em;
+  line-height: 1.5;
+}
+
+.focus-brand {
+  letter-spacing: 0.085em;
+}
+
+.focus-meta {
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 400;
+  letter-spacing: 0.055em;
+}
+
+.focus-content h1 {
+  font-weight: 450;
+  letter-spacing: -0.042em;
+  line-height: 0.88;
+}
+
+@media (max-width: 860px) {
+  .screen-intro h1 {
+    letter-spacing: -0.04em;
+    line-height: 1.015;
+  }
+
+  .quest-card-body h2 {
+    letter-spacing: -0.034em;
+    line-height: 1.055;
+  }
+
+  .mobile-nav-label {
+    font-size: 12px;
+    font-weight: 450;
+    letter-spacing: -0.012em;
+  }
+
+  .focus-content h1 {
+    letter-spacing: -0.038em;
+    line-height: 0.9;
+  }
+}
