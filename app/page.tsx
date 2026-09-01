@@ -160,7 +160,9 @@ export default function Home() {
     const task = tasks.find((item) => item.id === id);
     if (!task || task.state === "done") return;
     setTasks((items) =>
-      items.map((item) => (item.id === id ? { ...item, state: "done" } : item))
+      items.map<Task>((item) =>
+        item.id === id ? { ...item, state: "done" } : item
+      )
     );
     setXp((value) => value + task.xp);
     setActiveTask(null);
