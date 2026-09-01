@@ -3,6 +3,7 @@ import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import PwaRegister from "./pwa-register";
 import "./globals.css";
+import "./dark-mode.css";
 import "./typography.css";
 
 export const metadata: Metadata = {
@@ -31,7 +32,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: "cover",
-  themeColor: "#070709",
+  themeColor: "#070708",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
