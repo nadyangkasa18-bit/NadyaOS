@@ -1,17 +1,33 @@
 {
+  "id": "/",
   "name": "Nadya OS",
   "short_name": "Nadya OS",
   "description": "A calm personal operating system that decides what matters next.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#070709",
   "theme_color": "#070709",
+  "prefer_related_applications": false,
+  "categories": ["productivity", "utilities"],
   "icons": [
     {
-      "src": "/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
