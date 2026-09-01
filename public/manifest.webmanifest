@@ -4,8 +4,8 @@
   "description": "A calm personal operating system that decides what matters next.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f5f0e8",
-  "theme_color": "#8f79ff",
+  "background_color": "#070709",
+  "theme_color": "#070709",
   "icons": [
     {
       "src": "/icon.svg",
